@@ -4,4 +4,4 @@ Play the Ludum Dare prototype here: https://ninja-muffin24.itch.io/friday-night-
 Play the Original Game here: https://ninja-muffin24.itch.io/funkin
 Play the Newgrounds one here: https://www.newgrounds.com/portal/view/770371
 
-art/shit.png
+![Coolest GIF ever](art/SHAAAAAAAT.gif)
