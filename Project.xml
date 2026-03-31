@@ -34,32 +34,31 @@
 	<assets path="assets/fonts/vcr.ttf" embed="true" />
 
 	<haxelib name="flixel" />
-
 	<haxelib name="flixel-addons" />
 	<haxelib name="hscript" />
-
 	<haxelib name="flixel-ui" />
-	<haxelib name="newgrounds" if="!android" />
 	<haxelib name="markdown" />
 	<haxelib name="HtmlParser" />
+
+	<haxelib name="newgrounds" if="!android" />
 
 	<haxedef name="FLX_NO_MOUSE" if="mobile" />
 	<haxedef name="FLX_NO_KEYBOARD" if="mobile" />
 	<haxedef name="FLX_NO_TOUCH" if="desktop" />
 
 	<haxedef name="FLX_NO_DEBUG" unless="debug" />
-
 	<haxedef name="NAPE_RELEASE_BUILD" unless="debug" />
 
 	<icon path="art/icon.png" />
 	<haxedef name="SKIP_TO_PLAYSTATE" if="debug" />
 
-	<!-- mobile(apk) build config -->
+	<!-- Android setup configuration -->
 	<android>
 		<build-tools>36.0.0</build-tools>
 		<target-sdk-version>34</target-sdk-version>
 		<min-sdk-version>21</min-sdk-version>
 		<haxedef name="ANDROID_BUILD" />
+		<haxedef name="NO_NEWGROUNDS" />
 	</android>
 
 </project>

@@ -1,6 +1,9 @@
 package;
 
 import flixel.FlxG;
+#if android
+import flixel.FlxG;
+#end
 import flixel.FlxSprite;
 import flixel.FlxState;
 import flixel.addons.display.FlxGridOverlay;
@@ -176,8 +179,14 @@ class TitleState extends MusicBeatState
 		ngSpr.antialiasing = true;
 
 		FlxTween.tween(credTextShit, {y: credTextShit.y + 20}, 2.9, {ease: FlxEase.quadInOut, type: PINGPONG});
-
+        
 		FlxG.mouse.visible = false;
+
+		//ANDROID BUILLSHIT
+		#if !mobile
+		FlxG.mouse.visible = true;
+		FlxG.mouse.useSystemCursor = true;
+		#end
 
 		if (initialized)
 			skipIntro();
