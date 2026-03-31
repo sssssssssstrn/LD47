@@ -73,7 +73,7 @@ class PlayState extends MusicBeatState
 	private var generatedMusic:Bool = false;
 	private var startingSong:Bool = false;
 
-	private var healthIcon:FlxSprite;
+	private var healthHeads:FlxSprite;
 	private var camHUD:FlxCamera;
 	private var camGame:FlxCamera;
 
@@ -86,18 +86,6 @@ class PlayState extends MusicBeatState
 	var songScore:Int = 0;
 
 	public static var campaignScore:Int = 0;
-
-	// V-Slice input variables
-	private var lastNoteHitTime:Array<Float> = [0, 0, 0, 0];
-	private var ratings:Array<String> = [];
-	private var ratingTimers:Array<FlxTimer> = [];
-	private var ghostTapEnabled:Bool = true;
-	
-	// Rating offsets
-	private var sickOffset:Float = 45;
-	private var goodOffset:Float = 90;
-	private var badOffset:Float = 135;
-	private var shitOffset:Float = 180;
 
 	override public function create()
 	{
@@ -244,31 +232,27 @@ class PlayState extends MusicBeatState
 
 		FlxG.fixedTimestep = false;
 
-		// V-Slice Health Bar
-		healthBarBG = new FlxSprite(0, FlxG.height * 0.89).makeGraphic(FlxG.width, 30, 0xFF000000);
-		healthBarBG.alpha = 0.6;
+		healthBarBG = new FlxSprite(0, FlxG.height * 0.9).loadGraphic(AssetPaths.healthBar__png);
+		healthBarBG.screenCenter(X);
 		healthBarBG.scrollFactor.set();
 		add(healthBarBG);
 
 		healthBar = new FlxBar(healthBarBG.x + 4, healthBarBG.y + 4, RIGHT_TO_LEFT, Std.int(healthBarBG.width - 8), Std.int(healthBarBG.height - 8), this,
 			'health', 0, 2);
 		healthBar.scrollFactor.set();
-		healthBar.createFilledBar(0xFFFF0000, 0xFF00FF00);
-		healthBar.numDivisions = 800;
+		healthBar.createFilledBar(0xFFFF0000, 0xFF66FF33);
+		healthBar.numDivisions = 1000;
 		add(healthBar);
 
-		healthIcon = new FlxSprite();
-		var iconTex = FlxAtlasFrames.fromSparrow(AssetPaths.healthHeads__png, AssetPaths.healthHeads__xml);
-		healthIcon.frames = iconTex;
-		healthIcon.animation.addByPrefix('healthy', 'healthy', 24, true);
-		healthIcon.animation.addByPrefix('unhealthy', 'unhealthy', 24, true);
-		healthIcon.animation.play('healthy');
-		healthIcon.scrollFactor.set();
-		healthIcon.antialiasing = true;
-		healthIcon.setGraphicSize(Std.int(healthIcon.width * 0.8));
-		healthIcon.updateHitbox();
-		healthIcon.y = healthBar.y - (healthIcon.height / 2) + 4;
-		add(healthIcon);
+		healthHeads = new FlxSprite();
+		var headTex = FlxAtlasFrames.fromSparrow(AssetPaths.healthHeads__png, AssetPaths.healthHeads__xml);
+		healthHeads.frames = headTex;
+		healthHeads.animation.add('healthy', [0]);
+		healthHeads.animation.add('unhealthy', [1]);
+		healthHeads.y = healthBar.y - (healthHeads.height / 2);
+		healthHeads.scrollFactor.set();
+		healthHeads.antialiasing = true;
+		add(healthHeads);
 
 		if (isStoryMode)
 		{
@@ -281,7 +265,7 @@ class PlayState extends MusicBeatState
 		notes.cameras = [camHUD];
 		healthBar.cameras = [camHUD];
 		healthBarBG.cameras = [camHUD];
-		healthIcon.cameras = [camHUD];
+		healthHeads.cameras = [camHUD];
 		doof.cameras = [camHUD];
 
 		super.create();
@@ -593,26 +577,17 @@ class PlayState extends MusicBeatState
 			FlxG.switchState(new ChartingState());
 		}
 
-		// V-Slice Health Icon positioning
-		var healthPercent = healthBar.percent / 100;
-		var iconX = healthBar.x + (healthBar.width * (1 - healthPercent)) - (healthIcon.width / 2);
-		healthIcon.x = FlxMath.lerp(healthIcon.x, iconX, 0.2);
-		
-		if (healthIcon.x < healthBar.x + 4)
-			healthIcon.x = healthBar.x + 4;
-		if (healthIcon.x > healthBar.x + healthBar.width - healthIcon.width - 4)
-			healthIcon.x = healthBar.x + healthBar.width - healthIcon.width - 4;
+		healthHeads.setGraphicSize(Std.int(FlxMath.lerp(150, healthHeads.width, 0.50)));
+		healthHeads.updateHitbox();
+		healthHeads.x = healthBar.x + (healthBar.width * (FlxMath.remapToRange(healthBar.percent, 0, 100, 100, 0) * 0.01)) - (healthHeads.width / 2);
+
+		if (health > 2)
+			health = 2;
 
 		if (healthBar.percent < 20)
-		{
-			if (healthIcon.animation.curAnim.name != 'unhealthy')
-				healthIcon.animation.play('unhealthy');
-		}
+			healthHeads.animation.play('unhealthy');
 		else
-		{
-			if (healthIcon.animation.curAnim.name != 'healthy')
-				healthIcon.animation.play('healthy');
-		}
+			healthHeads.animation.play('healthy');
 
 		#if debug
 		if (FlxG.keys.justPressed.EIGHT)
@@ -768,15 +743,6 @@ class PlayState extends MusicBeatState
 					{
 						health -= 0.04;
 						vocals.volume = 0;
-						
-						if (ghostTapEnabled)
-						{
-							var missedNote:Note = daNote;
-							if (missedNote.mustPress && !missedNote.wasGoodHit)
-							{
-								noteMiss(missedNote.noteData);
-							}
-						}
 					}
 
 					daNote.active = false;
@@ -843,86 +809,111 @@ class PlayState extends MusicBeatState
 
 	var endingSong:Bool = false;
 
-	private function popUpScore(note:Note):Void
+	private function popUpScore(strumtime:Float):Void
 	{
-		var noteDiff:Float = Math.abs(note.strumTime - Conductor.songPosition);
+		var noteDiff:Float = Math.abs(strumtime - Conductor.songPosition);
 		vocals.volume = 1;
+
+		var placement:String = Std.string(combo);
+
+		var coolText:FlxText = new FlxText(0, 0, 0, placement, 32);
+		coolText.screenCenter();
+		coolText.x = FlxG.width * 0.55;
 
 		var rating:FlxSprite = new FlxSprite();
 		var score:Int = 350;
+
 		var daRating:String = "sick";
 
-		if (noteDiff > shitOffset)
+		if (noteDiff > Conductor.safeZoneOffset * 0.9)
 		{
 			daRating = 'shit';
 			score = 50;
-			health -= 0.02;
 		}
-		else if (noteDiff > badOffset)
+		else if (noteDiff > Conductor.safeZoneOffset * 0.75)
 		{
 			daRating = 'bad';
 			score = 100;
-			health -= 0.01;
 		}
-		else if (noteDiff > goodOffset)
+		else if (noteDiff > Conductor.safeZoneOffset * 0.2)
 		{
 			daRating = 'good';
 			score = 200;
 		}
-		else if (noteDiff > sickOffset)
-		{
-			daRating = 'sick';
-			score = 350;
-			health += 0.02;
-		}
-		else
-		{
-			daRating = 'sick';
-			score = 350;
-			health += 0.02;
-		}
-
-		if (daRating == 'sick' && combo > 20)
-			score = 400;
-		else if (daRating == 'sick' && combo > 10)
-			score = 375;
 
 		songScore += score;
 
-		var ratingText:FlxText = new FlxText(0, 0, 0, daRating.toUpperCase(), 32);
-		ratingText.setFormat("assets/fonts/vcr.ttf", 32, FlxColor.WHITE, CENTER);
-		ratingText.screenCenter();
-		ratingText.x = FlxG.width * 0.55;
-		ratingText.y -= 100;
-		ratingText.acceleration.y = 600;
-		ratingText.velocity.y -= 200;
-		ratingText.alpha = 1;
-		add(ratingText);
+		rating.loadGraphic('assets/images/' + daRating + ".png");
+		rating.screenCenter();
+		rating.x = coolText.x - 40;
+		rating.y -= 60;
+		rating.acceleration.y = 550;
+		rating.velocity.y -= FlxG.random.int(140, 175);
+		rating.setGraphicSize(Std.int(rating.width * 0.7));
+		rating.updateHitbox();
+		rating.antialiasing = true;
+		rating.velocity.x -= FlxG.random.int(0, 10);
 
-		FlxTween.tween(ratingText, {alpha: 0, y: ratingText.y - 50}, 0.4, {
-			onComplete: function(twn:FlxTween)
-			{
-				ratingText.destroy();
-			}
+		var comboSpr:FlxSprite = new FlxSprite().loadGraphic(AssetPaths.combo__png);
+		comboSpr.screenCenter();
+		comboSpr.x = coolText.x;
+		comboSpr.acceleration.y = 600;
+		comboSpr.antialiasing = true;
+		comboSpr.velocity.y -= 150;
+		comboSpr.setGraphicSize(Std.int(comboSpr.width * 0.7));
+		comboSpr.updateHitbox();
+		comboSpr.velocity.x += FlxG.random.int(1, 10);
+		add(rating);
+
+		var seperatedScore:Array<Int> = [];
+
+		seperatedScore.push(Math.floor(combo / 100));
+		seperatedScore.push(Math.floor((combo - (seperatedScore[0] * 100)) / 10));
+		seperatedScore.push(combo % 10);
+
+		var daLoop:Int = 0;
+		for (i in seperatedScore)
+		{
+			var numScore:FlxSprite = new FlxSprite().loadGraphic('assets/images/num' + Std.int(i) + '.png');
+			numScore.screenCenter();
+			numScore.x = coolText.x + (43 * daLoop) - 90;
+			numScore.y += 80;
+			numScore.antialiasing = true;
+			numScore.setGraphicSize(Std.int(numScore.width * 0.5));
+			numScore.updateHitbox();
+			numScore.acceleration.y = FlxG.random.int(200, 300);
+			numScore.velocity.y -= FlxG.random.int(140, 160);
+			numScore.velocity.x = FlxG.random.float(-5, 5);
+
+			if (combo >= 10 || combo == 0)
+				add(numScore);
+
+			FlxTween.tween(numScore, {alpha: 0}, 0.2, {
+				onComplete: function(tween:FlxTween)
+				{
+					numScore.destroy();
+				},
+				startDelay: Conductor.crochet * 0.002
+			});
+
+			daLoop++;
+		}
+
+		coolText.text = Std.string(seperatedScore);
+
+		FlxTween.tween(rating, {alpha: 0}, 0.2, {
+			startDelay: Conductor.crochet * 0.001
 		});
 
-		var comboText:FlxText = new FlxText(0, 0, 0, Std.string(combo), 28);
-		comboText.setFormat("assets/fonts/vcr.ttf", 28, FlxColor.WHITE, CENTER);
-		comboText.screenCenter();
-		comboText.x = FlxG.width * 0.55;
-		comboText.y = ratingText.y + 40;
-		comboText.acceleration.y = 400;
-		comboText.velocity.y = -100;
-		comboText.alpha = 1;
-		
-		if (combo > 1 && !note.isSustainNote)
-			add(comboText);
-
-		FlxTween.tween(comboText, {alpha: 0, y: comboText.y - 30}, 0.4, {
-			onComplete: function(twn:FlxTween)
+		FlxTween.tween(comboSpr, {alpha: 0}, 0.2, {
+			onComplete: function(tween:FlxTween)
 			{
-				comboText.destroy();
-			}
+				coolText.destroy();
+				comboSpr.destroy();
+
+				rating.destroy();
+			},
+			startDelay: Conductor.crochet * 0.001
 		});
 
 		curSection += 1;
@@ -945,12 +936,7 @@ class PlayState extends MusicBeatState
 		var downR = controls.DOWN_R;
 		var leftR = controls.LEFT_R;
 
-		var keyArray:Array<Bool> = [leftP, downP, upP, rightP];
-		var keyHolds:Array<Bool> = [left, down, up, right];
-		
-		var keyJustPressed:Array<Bool> = keyArray.copy();
-
-		if ((leftP || downP || upP || rightP) && !boyfriend.stunned && generatedMusic)
+		if ((upP || rightP || downP || leftP) && !boyfriend.stunned && generatedMusic)
 		{
 			var possibleNotes:Array<Note> = [];
 
@@ -963,52 +949,63 @@ class PlayState extends MusicBeatState
 			});
 
 			possibleNotes.sort(function(a, b) {
-				return Math.abs(a.strumTime - Conductor.songPosition) < Math.abs(b.strumTime - Conductor.songPosition) ? -1 : 1;
+				var diffA = Math.abs(a.strumTime - Conductor.songPosition);
+				var diffB = Math.abs(b.strumTime - Conductor.songPosition);
+				return diffA < diffB ? -1 : 1;
 			});
 
-			for (i in 0...keyJustPressed.length)
+			var hitNote:Note = null;
+			var pressedKey:Int = -1;
+
+			if (upP) pressedKey = 2;
+			if (rightP) pressedKey = 3;
+			if (downP) pressedKey = 1;
+			if (leftP) pressedKey = 0;
+
+			for (note in possibleNotes)
 			{
-				if (keyJustPressed[i])
+				if (note.noteData == pressedKey)
 				{
-					var hitNote:Note = null;
-					
-					for (note in possibleNotes)
-					{
-						if (note.noteData == i)
-						{
-							hitNote = note;
-							break;
-						}
-					}
-					
-					if (hitNote != null)
-					{
-						goodNoteHit(hitNote);
-						lastNoteHitTime[i] = Conductor.songPosition;
-					}
-					else if (!ghostTapEnabled)
-					{
-						noteMiss(i);
-					}
+					hitNote = note;
+					break;
 				}
+			}
+
+			if (hitNote != null)
+			{
+				goodNoteHit(hitNote);
+			}
+			else if (possibleNotes.length > 0)
+			{
+				goodNoteHit(possibleNotes[0]);
+			}
+			else
+			{
+				badNoteCheck();
 			}
 		}
 
-		for (i in 0...keyHolds.length)
+		if ((up || right || down || left) && !boyfriend.stunned && generatedMusic)
 		{
-			if (keyHolds[i] && !boyfriend.stunned && generatedMusic)
+			notes.forEachAlive(function(daNote:Note)
 			{
-				notes.forEachAlive(function(daNote:Note)
+				if (daNote.canBeHit && daNote.mustPress && daNote.isSustainNote && !daNote.wasGoodHit)
 				{
-					if (daNote.canBeHit && daNote.mustPress && daNote.isSustainNote && !daNote.wasGoodHit && daNote.noteData == i)
+					var holdingCorrect = false;
+					switch (daNote.noteData)
 					{
-						if (daNote.prevNote != null && daNote.prevNote.wasGoodHit)
-						{
-							goodNoteHit(daNote);
-						}
+						case 2: holdingCorrect = up;
+						case 3: holdingCorrect = right;
+						case 1: holdingCorrect = down;
+						case 0: holdingCorrect = left;
 					}
-				});
-			}
+					
+					if (holdingCorrect && daNote.prevNote != null && daNote.prevNote.wasGoodHit)
+					{
+						goodNoteHit(daNote);
+					}
+				}
+			});
 		}
 
 		if (upR || leftR || rightR || downR)
@@ -1060,16 +1057,7 @@ class PlayState extends MusicBeatState
 	{
 		if (!boyfriend.stunned)
 		{
-			var missHealthLoss:Float = 0.06;
-			if (combo > 50)
-				missHealthLoss = 0.03;
-			else if (combo > 20)
-				missHealthLoss = 0.04;
-			else if (combo > 10)
-				missHealthLoss = 0.05;
-			
-			health -= missHealthLoss;
-			
+			health -= 0.06;
 			if (combo > 5)
 			{
 				gf.playAnim('sad');
@@ -1133,12 +1121,12 @@ class PlayState extends MusicBeatState
 		}
 
 		var missed = false;
-		if (leftP && ghostTapEnabled) { noteMiss(0); missed = true; }
-		if (upP && ghostTapEnabled) { noteMiss(2); missed = true; }
-		if (rightP && ghostTapEnabled) { noteMiss(3); missed = true; }
-		if (downP && ghostTapEnabled) { noteMiss(1); missed = true; }
+		if (leftP) { noteMiss(0); missed = true; }
+		if (upP) { noteMiss(2); missed = true; }
+		if (rightP) { noteMiss(3); missed = true; }
+		if (downP) { noteMiss(1); missed = true; }
 		
-		if (!missed && (upP || rightP || downP || leftP) && ghostTapEnabled)
+		if (!missed && (upP || rightP || downP || leftP))
 		{
 			noteMiss(FlxG.random.int(0, 3));
 		}
@@ -1148,7 +1136,7 @@ class PlayState extends MusicBeatState
 	{
 		if (keyP)
 			goodNoteHit(note);
-		else if (ghostTapEnabled)
+		else
 			badNoteCheck();
 	}
 
@@ -1158,23 +1146,14 @@ class PlayState extends MusicBeatState
 		{
 			if (!note.isSustainNote)
 			{
-				popUpScore(note);
+				popUpScore(note.strumTime);
 				combo += 1;
 			}
 
-			var healthGain:Float = 0.023;
-			if (combo > 50)
-				healthGain = 0.03;
-			else if (combo > 20)
-				healthGain = 0.027;
-			
 			if (note.noteData >= 0)
-				health += healthGain;
+				health += 0.023;
 			else
 				health += 0.004;
-
-			if (health > 2)
-				health = 2;
 
 			switch (note.noteData)
 			{
@@ -1268,6 +1247,9 @@ class PlayState extends MusicBeatState
 			FlxG.camera.zoom += 0.015;
 			camHUD.zoom += 0.03;
 		}
+
+		healthHeads.setGraphicSize(Std.int(healthHeads.width + 30));
+		healthHeads.updateHitbox();
 
 		if (totalBeats % gfSpeed == 0)
 		{

@@ -31,8 +31,6 @@
 	<assets path="assets/sounds" include="*.mp3" if="web" />
 	<assets path="assets/sounds" include="*.ogg" unless="web" />
 
-	<assets path="CHANGELOG.md"/>
-
 	<assets path="assets/fonts/vcr.ttf" embed="true" />
 
 	<haxelib name="flixel" />
@@ -41,7 +39,7 @@
 	<haxelib name="hscript" />
 
 	<haxelib name="flixel-ui" />
-	<haxelib name="newgrounds" />
+	<haxelib name="newgrounds" if="!android" />
 	<haxelib name="markdown" />
 	<haxelib name="HtmlParser" />
 
@@ -56,5 +54,12 @@
 	<icon path="art/icon.png" />
 	<haxedef name="SKIP_TO_PLAYSTATE" if="debug" />
 
+	<!-- mobile(apk) build config -->
+	<android>
+		<build-tools>36.0.0</build-tools>
+		<target-sdk-version>34</target-sdk-version>
+		<min-sdk-version>21</min-sdk-version>
+		<haxedef name="ANDROID_BUILD" />
+	</android>
 
 </project>

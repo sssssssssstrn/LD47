@@ -1,0 +1,10 @@
+    haxelib install lime 7.9.0
+    haxelib install openfl 9.1.0
+    haxelib install flixel 4.8.1
+    haxelib install hxcpp 4.1.1
+    haxelib install flixel-addons 2.9.0
+    haxelib install flixel-tools 1.4.1
+    haxelib install hscript 2.3.0
+    haxelib install actuate 1.8.9
+    haxelib install swf 2.3.0
+haxelib install newgrounds 1.1.2  
